@@ -6,7 +6,7 @@ provider "aws" {
 # Centraliza o arquivo de controle do terraform
 terraform {
   backend "s3" {
-    bucket = "terraform-state"
+    bucket = "nefesh-terraform-state"
     key    = "nefesh-state/terraform.tfstate"
     region = "us-east-2"
   }
