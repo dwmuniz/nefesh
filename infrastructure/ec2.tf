@@ -24,17 +24,7 @@ resource "aws_instance" "airflow" {
   security_groups             = [aws_security_group.airflow_sg.id]
   subnet_id                   = var.airflow_subnet_id
 
-  provisioner "file" {
-    source      = "~/install.sh"
-    destination = "/tmp/install.sh"
-  }
-  # Change permissions on bash script and execute from ec2-user.
-  provisioner "remote-exec" {
-    inline = [
-      "chmod +x /tmp/install.sh",
-      "sudo install.sh",
-    ]
-  }
+  
   tags = {
     PROJECT   = "NEFESH",
     AUTHOR    = "Daniela Muniz"
