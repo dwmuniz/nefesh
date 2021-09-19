@@ -69,3 +69,27 @@ resource "aws_s3_bucket_public_access_block" "trusted_data" {
   block_public_acls   = true
   block_public_policy = true
 }
+
+resource "aws_s3_bucket" "artfacts" {
+  bucket = "nefesh-artfacts"
+  acl    = "private"
+
+  tags = {
+        PROJECT   = "NEFESH",
+        AUTHOR    = "Daniela Muniz"
+  }
+
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
+}
+resource "aws_s3_bucket_public_access_block" "artfacts" {
+  bucket = aws_s3_bucket.artfacts.id
+
+  block_public_acls   = true
+  block_public_policy = true
+}
