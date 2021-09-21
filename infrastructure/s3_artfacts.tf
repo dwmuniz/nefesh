@@ -8,7 +8,7 @@ resource "aws_s3_bucket_object" "etl" {
 
 resource "aws_s3_bucket_object" "dag" {
   bucket = aws_s3_bucket.artfacts.id
-  key    = "dag/nefesh_pipeline.py"
+  key    = "dags/nefesh_pipeline.py"
   acl    = "private"
   source = "../airflow/dags/nefesh_pipeline.py"
   etag   = filemd5("../airflow/dags/nefesh_pipeline.py")
