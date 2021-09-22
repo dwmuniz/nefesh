@@ -27,18 +27,18 @@ if (nome_tabela == "empresa"):
                     StructField('razao_social', StringType()),
                     StructField('natureza_juridica', LongType()),
                     StructField('qualificacao_responsavel', LongType()),
-                    StructField('capital_social', DoubleType()), ## perguntar
-                    StructField('porte_empresa', IntegerType()),  ##  array
-                    StructField('ente_federativo_responsavel', StringType()) # aceita null
+                    StructField('capital_social', StringType()), 
+                    StructField('porte_empresa', IntegerType()),  
+                    StructField('ente_federativo_responsavel', StringType()) 
                     ])
 elif (nome_tabela == "estabelecimento"):
     schema_tabela = StructType ([
                     StructField('cnpj_basico', LongType()),
                     StructField('cnpj_ordem', LongType()),
                     StructField('cnpj_dv', LongType()),
-                    StructField('id_matriz_filial', IntegerType()), # array
+                    StructField('id_matriz_filial', IntegerType()), 
                     StructField('nome_fantasia', StringType()),
-                    StructField('situacao_cadastral', IntegerType()),  ## array
+                    StructField('situacao_cadastral', IntegerType()), 
                     StructField('dt_situacao_cadastral', LongType()),
                     StructField('motivo_situacao_cadastral', LongType()),
                     StructField('nome_cidade_exterior', StringType()),
@@ -67,10 +67,10 @@ elif (nome_tabela == "estabelecimento"):
 elif (nome_tabela == "simples_mei"):
     schema_tabela = StructType ([
                     StructField('cnpj_basico', LongType()),
-                    StructField('opcao_simples', StringType()), # array aceita null
+                    StructField('opcao_simples', StringType()),
                     StructField('dt_opcao_simples', LongType()),
                     StructField('dt_exclusao_simples', LongType()),
-                    StructField('opcao_mei', StringType()), # array/aceita null
+                    StructField('opcao_mei', StringType()),
                     StructField('dt_opcao_mei', LongType()), 
                     StructField('dt_exclusao_mei', LongType())
                     ])
@@ -102,6 +102,7 @@ dfOrigem = (
     .option("header", False)
     .option("delimiter", ";")
     .option("encoding", "ISO-8859-1")
+    .option("quote", "\"")
     .load(f"s3://nefesh-raw-data/dados_publicos/{nome_tabela}/")
 )
 

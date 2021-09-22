@@ -5,7 +5,11 @@ from airflow.providers.amazon.aws.operators.emr_add_steps import EmrAddStepsOper
 from airflow.providers.amazon.aws.operators.emr_create_job_flow import EmrCreateJobFlowOperator
 from airflow.providers.amazon.aws.operators.emr_terminate_job_flow import EmrTerminateJobFlowOperator
 from airflow.providers.amazon.aws.sensors.emr_step import EmrStepSensor
-from airflow.utils.dates import days_ago
+from airflow.operators.dummy import DummyOperator
+
+# Configurar as connections no UI do Airflow
+# aws_default - Extra field: {"region_name": "us-east-2"}
+# emr_default - Extra field: {"JobFlowRole":"EMR_EC2_DefaultRole","ServiceRole":"EMR_DefaultRole"}
 
 def create_step(nome_tabela):
     STEP = [
@@ -23,11 +27,27 @@ def create_step(nome_tabela):
     ]
     return STEP
 
+def create_step_dm(nome_tabela):
+    STEP = [
+        {
+            'Name': f"ingest_{nome_tabela}",
+            'ActionOnFailure': 'CONTINUE',
+            'HadoopJarStep': {
+                'Jar': 'command-runner.jar',
+                'Args': ['spark-submit', '--master', 'yarn', '--deploy-mode', 'cluster',
+                    '--name', f'Ingestao da tabela {nome_tabela}', 's3://nefesh-artfacts/etl/ingest_dm.py',
+                    f'{nome_tabela}', 'nefesh_trusted'
+                ],
+            },
+        }
+    ]
+    return STEP
+
 JOB_FLOW_OVERRIDES = {
 	"Name"                 : "EMR-Pipeline-NEFESH",
 	"ServiceRole"          : "EMR_DefaultRole",
 	"JobFlowRole"          : "EMR_EC2_DefaultRole",
-	"VisibleToAllUsers"    : "True",
+	"VisibleToAllUsers"    : True,
 	"LogUri"               : "s3://nefesh-raw-data/emr_logs/",
 	"ReleaseLabel"         : "emr-6.1.0",
 	"Instances"            : {
@@ -44,11 +64,11 @@ JOB_FLOW_OVERRIDES = {
 	            "Market"       : "SPOT",
 	            "InstanceRole" : "CORE",
 	            "InstanceType" : "m5.xlarge",
-	            "InstanceCount": 1,
+	            "InstanceCount": 2,
 	        }
 	    ],
-	    "KeepJobFlowAliveWhenNoSteps": "True",
-	    "TerminationProtected"       : "False",
+	    "KeepJobFlowAliveWhenNoSteps": True,
+	    "TerminationProtected"       : False,
 	    "Ec2KeyName"                 : "pipeline_key_pair",
 	    "Ec2SubnetId"                : "subnet-c19e50aa"
 	},
@@ -91,7 +111,7 @@ JOB_FLOW_OVERRIDES = {
 	        }
 	    }
 	],
-	"StepConcurrencyLevel" : 5,
+	"StepConcurrencyLevel" : 3,
 }
 
 with DAG(
@@ -134,7 +154,7 @@ with DAG(
         aws_conn_id='aws_default',
         steps=create_step('estabelecimento'),
     )
-    wait_empresa = EmrStepSensor(
+    wait_estabelecimento = EmrStepSensor(
         task_id='wait_estabelecimento',
         job_flow_id=start_cluster.output,
         step_id="{{ task_instance.xcom_pull(task_ids='ingest_estabelecimento', key='return_value')[0] }}",
@@ -148,7 +168,7 @@ with DAG(
         aws_conn_id='aws_default',
         steps=create_step('simples_mei'),
     )
-    wait_empresa = EmrStepSensor(
+    wait_simples_mei = EmrStepSensor(
         task_id='wait_simples_mei',
         job_flow_id=start_cluster.output,
         step_id="{{ task_instance.xcom_pull(task_ids='ingest_simples_mei', key='return_value')[0] }}",
@@ -162,21 +182,21 @@ with DAG(
         aws_conn_id='aws_default',
         steps=create_step('cnae'),
     )
-    wait_empresa = EmrStepSensor(
+    wait_cnae = EmrStepSensor(
         task_id='wait_cnae',
         job_flow_id=start_cluster.output,
-        step_id="{{ task_instance.xcom_pull(task_ids='ingest_simples_mei', key='return_value')[0] }}",
+        step_id="{{ task_instance.xcom_pull(task_ids='ingest_cnae', key='return_value')[0] }}",
         aws_conn_id='aws_default',
     )
 
     # Task e Sensor da tabela municipio
-    step_cnae = EmrAddStepsOperator(
-        task_id='municipio',
+    step_municipio = EmrAddStepsOperator(
+        task_id='ingest_municipio',
         job_flow_id=start_cluster.output,
         aws_conn_id='aws_default',
         steps=create_step('municipio'),
     )
-    wait_empresa = EmrStepSensor(
+    wait_municipio = EmrStepSensor(
         task_id='wait_municipio',
         job_flow_id=start_cluster.output,
         step_id="{{ task_instance.xcom_pull(task_ids='ingest_municipio', key='return_value')[0] }}",
@@ -184,13 +204,13 @@ with DAG(
     )
 
     # Task e Sensor da tabela natureza_juridica
-    step_cnae = EmrAddStepsOperator(
-        task_id='natureza_juridica',
+    step_natureza = EmrAddStepsOperator(
+        task_id='ingest_natureza_juridica',
         job_flow_id=start_cluster.output,
         aws_conn_id='aws_default',
         steps=create_step('natureza_juridica'),
     )
-    wait_empresa = EmrStepSensor(
+    wait_natureza = EmrStepSensor(
         task_id='wait_natureza_juridica',
         job_flow_id=start_cluster.output,
         step_id="{{ task_instance.xcom_pull(task_ids='ingest_natureza_juridica', key='return_value')[0] }}",
@@ -198,16 +218,30 @@ with DAG(
     )
 
     # Task e Sensor da tabela pais
-    step_cnae = EmrAddStepsOperator(
-        task_id='pais',
+    step_pais = EmrAddStepsOperator(
+        task_id='ingest_pais',
         job_flow_id=start_cluster.output,
         aws_conn_id='aws_default',
         steps=create_step('pais'),
     )
-    wait_empresa = EmrStepSensor(
+    wait_pais = EmrStepSensor(
         task_id='wait_pais',
         job_flow_id=start_cluster.output,
         step_id="{{ task_instance.xcom_pull(task_ids='ingest_pais', key='return_value')[0] }}",
+        aws_conn_id='aws_default',
+    )
+
+    # Task e Sensor da tabela dm_empresa
+    step_dm_empresa = EmrAddStepsOperator(
+        task_id='ingest_dm_empresa',
+        job_flow_id=start_cluster.output,
+        aws_conn_id='aws_default',
+        steps=create_step_dm('dm_empresa'),
+    )
+    wait_dm_empresa = EmrStepSensor(
+        task_id='wait_dm_empresa',
+        job_flow_id=start_cluster.output,
+        step_id="{{ task_instance.xcom_pull(task_ids='ingest_dm_empresa', key='return_value')[0] }}",
         aws_conn_id='aws_default',
     )
 
@@ -218,5 +252,11 @@ with DAG(
         aws_conn_id='aws_default',
     )
 
-    #step_adder >> step_checker >> stop_cluster
+    nothing_1 = DummyOperator(
+        task_id="nothing_1"
+    )
 
+    #step_adder >> step_checker >> stop_cluster
+    start_cluster >> [step_empresa, step_estabelecimento, step_simples_mei, step_cnae, step_municipio, step_natureza, step_pais] >> nothing_1
+    nothing_1 >> [wait_empresa, wait_estabelecimento, wait_simples_mei, wait_cnae, wait_municipio, wait_natureza, wait_pais] >> step_dm_empresa
+    step_dm_empresa >> wait_dm_empresa >> stop_cluster

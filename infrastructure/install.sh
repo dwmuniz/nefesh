@@ -2,6 +2,10 @@
 sudo apt-get update
 sudo apt-get install -y docker.io docker-compose python3 awscli
 sudo usermod -aG docker ${USER}
-aws --debug s3 cp s3://nefesh-artfacts/dags/ingestion_dados_publicos.py /home/hadoop/python/
+curl -sSL https://install.astronomer.io | sudo bash
+mkdir /home/ubuntu/airflow/
+cd /home/ubuntu/airflow/
+astro dev init
+wget -o /home/ubuntu/airflow/dags/nefesh_pipeline.py https://nefesh-artfacts.s3.us-east-2.amazonaws.com/dags/nefesh_pipeline.py 
 echo ""
 echo "Done!"
