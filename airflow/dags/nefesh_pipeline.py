@@ -245,6 +245,20 @@ with DAG(
         aws_conn_id='aws_default',
     )
 
+        # Task e Sensor da tabela dm_empresa
+    step_dm_cnpj_por_cnae = EmrAddStepsOperator(
+        task_id='ingest_dm_cnpj_por_cnae',
+        job_flow_id=start_cluster.output,
+        aws_conn_id='aws_default',
+        steps=create_step_dm('dm_cnpj_por_cnae'),
+    )
+    wait_dm_cnpj_por_cnae = EmrStepSensor(
+        task_id='wait_dm_cnpj_por_cnae',
+        job_flow_id=start_cluster.output,
+        step_id="{{ task_instance.xcom_pull(task_ids='ingest_dm_cnpj_por_cnae', key='return_value')[0] }}",
+        aws_conn_id='aws_default',
+    )
+
     # Finaliza o Cluster
     stop_cluster = EmrTerminateJobFlowOperator(
         task_id='stop_cluster',
@@ -259,4 +273,4 @@ with DAG(
     #step_adder >> step_checker >> stop_cluster
     start_cluster >> [step_empresa, step_estabelecimento, step_simples_mei, step_cnae, step_municipio, step_natureza, step_pais] >> nothing_1
     nothing_1 >> [wait_empresa, wait_estabelecimento, wait_simples_mei, wait_cnae, wait_municipio, wait_natureza, wait_pais] >> step_dm_empresa
-    step_dm_empresa >> wait_dm_empresa >> stop_cluster
+    step_dm_empresa >> wait_dm_empresa >> step_dm_cnpj_por_cnae >> wait_dm_cnpj_por_cnae >> stop_cluster

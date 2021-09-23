@@ -11,6 +11,9 @@ nome_db = sys.argv[2]
 # Cria objeto da Spark Session
 spark = (SparkSession.builder.appName(f"Ingestao da Tabela - {nome_tabela}")
     .config("hive.metastore.client.factory.class", "com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory")
+    .config("spark.default.parallelism", "12") #qtas tasks o spark roda em paralelo
+    .config("spark.dynamicAllocation.minExecutors","4") # worker
+    .config("spark.dynamicAllocation.maxExecutors", "8") # worker
     .enableHiveSupport() 
     .getOrCreate()
 )
@@ -102,7 +105,8 @@ dfOrigem = (
     .option("header", False)
     .option("delimiter", ";")
     .option("encoding", "ISO-8859-1")
-    .option("quote", "\"")
+    .option("quote", "\"") # ignora as aspas duplas no inicio e fim dos campos
+    .option("escape", "\"") # muda " para \" dentro do valor do campo
     .load(f"s3://nefesh-raw-data/dados_publicos/{nome_tabela}/")
 )
 
@@ -113,5 +117,6 @@ dfDestino = (
     .mode("overwrite")
     .format("parquet")
     .option("path", f"s3://nefesh-stage-data/dados_publicos/{nome_tabela}/")
+    .option("parquet.block.size", 128 * 1024 * 1024) # salva os partquets com no maximo 128mb
     .saveAsTable(nome_tabela)
 )
