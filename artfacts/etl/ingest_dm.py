@@ -11,10 +11,14 @@ nome_db = sys.argv[2]
 # Cria objeto da Spark Session
 spark = (SparkSession.builder.appName(f"Ingestao da Tabela - {nome_tabela}")
     .config("hive.metastore.client.factory.class", "com.amazonaws.glue.catalog.metastore.AWSGlueDataCatalogHiveClientFactory")
+    .config("spark.default.parallelism", "12") #qtas tasks o spark roda em paralelo
+    .config("spark.dynamicAllocation.minExecutors","4") # worker
+    .config("spark.dynamicAllocation.maxExecutors", "8") # worker
     .enableHiveSupport() 
     .getOrCreate()
 )
-sql_empresa = """
+sqls = {}
+sqls["dm_empresa"] = """
 SELECT
     emp.razao_social,
     emp.natureza_juridica,
@@ -44,13 +48,30 @@ FROM nefesh_stage.empresa as emp
     LEFT JOIN nefesh_stage.simples_mei as sim ON (sim.cnpj_basico = est.cnpj_basico)
     LEFT JOIN nefesh_stage.cnae as cna ON (cna.codigo = est.cnae_fiscal_principal)
 """
+sqls["dm_cnpj_por_cnae"] = """
+WITH cte_cnae AS (
+    SELECT 
+        cnpj_basico, concat_ws(',', cast(cnae_fiscal_principal as varchar), cnae_fiscal_secundaria) as codigo_cnae
+    FROM nefesh_trusted.dm_empresa
+), cte_cnpj_cnae AS (
+    SELECT cnpj_basico, value as cnae
+    FROM cte_cnae
+    CROSS JOIN UNNEST(split(cte_cnae.codigo_cnae, ',')) as x(value)
+)
+SELECT 
+    cnpj.*,
+    cn.descricao as desc_cnae
+FROM cte_cnpj_cnae as cnpj
+INNER JOIN nefesh_stage.cnae as cn ON (cnpj.cnae=cast(cn.codigo as varchar))
+"""
+
 
 # Cria banco de dados se nao existir
 spark.sql(f"CREATE DATABASE IF NOT EXISTS {nome_db}")
 spark.catalog.setCurrentDatabase(nome_db)
 
 # Leitura dos dados
-dfOrigem = spark.sql(sql_empresa)
+dfOrigem = spark.sql(sqls[nome_tabela])
 
 # Gera os parquets e salva como tabela externa no glue
 dfDestino = (
@@ -59,6 +80,9 @@ dfDestino = (
     .mode("overwrite")
     .format("parquet")
     .option("path", f"s3://nefesh-trusted-data/dados_publicos/{nome_tabela}/")
-    .partitionBy(['ano_situacao_cadastral','mes_situacao_cadastral'])
+    .option("parquet.block.size", 128 * 1024 * 1024)
     .saveAsTable(nome_tabela)
 )
+
+
+
