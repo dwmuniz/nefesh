@@ -51,18 +51,23 @@ FROM nefesh_stage.empresa as emp
 sqls["dm_cnpj_por_cnae"] = """
 WITH cte_cnae AS (
     SELECT 
-        cnpj_basico, concat_ws(',', cast(cnae_fiscal_principal as varchar), cnae_fiscal_secundaria) as codigo_cnae
+        cnpj_basico, cnpj_ordem, cnpj_dv, concat_ws(',', cast(cnae_fiscal_principal as string), cnae_fiscal_secundaria) as codigo_cnae
     FROM nefesh_trusted.dm_empresa
 ), cte_cnpj_cnae AS (
-    SELECT cnpj_basico, value as cnae
-    FROM cte_cnae
-    CROSS JOIN UNNEST(split(cte_cnae.codigo_cnae, ',')) as x(value)
+    SELECT cnpj_basico, cnpj_ordem, cnpj_dv, cnae
+    FROM cte_cnae lateral view explode(split(codigo_cnae,',')) codigo_cnae AS cnae 
+    -- Query Athena:
+    -- SELECT cnpj_basico, value as cnae
+    -- FROM cte_cnae
+    -- CROSS JOIN UNNEST(split(cte_cnae.codigo_cnae, ',')) as x(value)
+), cte_final AS (
+    SELECT 
+        cnpj.*,
+        cn.descricao as desc_cnae
+    FROM cte_cnpj_cnae as cnpj
+    INNER JOIN nefesh_stage.cnae as cn ON (cnpj.cnae=cast(cn.codigo as string))
 )
-SELECT 
-    cnpj.*,
-    cn.descricao as desc_cnae
-FROM cte_cnpj_cnae as cnpj
-INNER JOIN nefesh_stage.cnae as cn ON (cnpj.cnae=cast(cn.codigo as varchar))
+SELECT DISTINCT * FROM cte_final
 """
 
 
